@@ -70,9 +70,16 @@
 <body class="bg-gradient-to-br from-custom-dark via-custom-gray to-custom-dark min-h-screen text-custom-light">
     <div class="container mx-auto px-4 py-8 max-w-2xl">
         <!-- Header -->
-        <div class="text-center mb-8">
+        <div class="text-center mb-8 relative">
             <h1 class="text-3xl font-bold text-custom-light mb-2">💭 Anonymous Confessions</h1>
             <p class="text-gray-300">Share your thoughts anonymously</p>
+            <button 
+                id="adminBtn"
+                class="absolute top-0 right-0 bg-custom-orange hover:bg-orange-400 text-custom-dark px-3 py-1 rounded-md text-sm font-medium"
+                title="Admin access"
+            >
+                Admin
+            </button>
         </div>
         
         <!-- Confession Form -->
@@ -112,6 +119,26 @@
             <h3 class="text-xl font-medium text-custom-light mb-2">No confessions yet</h3>
             <p class="text-gray-300">Be the first to share an anonymous confession!</p>
         </div>
+        
+        <!-- Admin-only notice (shown until admin authenticates) -->
+        <div id="adminOnlyState" class="text-center py-12">
+            <div class="text-6xl mb-4">🔒</div>
+            <h3 class="text-xl font-medium text-custom-light mb-2">Admin access required</h3>
+            <p class="text-gray-300">Confessions are visible to admins only. Click the 'Admin' button and enter the password.</p>
+        </div>
+    </div>
+
+    <!-- Admin Password Modal -->
+    <div id="adminModal" class="fixed inset-0 bg-black/60 hidden items-center justify-center z-50">
+      <div class="bg-custom-gray border border-custom-orange rounded-lg shadow-xl p-6 w-full max-w-sm">
+        <h3 class="text-lg font-semibold text-custom-light mb-3">Admin Access</h3>
+        <input id="adminPasswordInput" type="password" placeholder="Enter admin password" class="w-full p-3 bg-custom-dark border border-gray-600 text-custom-light placeholder-gray-400 rounded-lg focus:ring-2 focus:ring-custom-orange focus:border-transparent outline-none" />
+        <p id="adminError" class="text-custom-red text-sm mt-2 hidden">Invalid password. Try again.</p>
+        <div class="flex justify-end space-x-2 mt-4">
+          <button id="adminCancelBtn" class="px-3 py-2 rounded-md bg-gray-600 text-white hover:bg-gray-500">Cancel</button>
+          <button id="adminSubmitBtn" class="px-3 py-2 rounded-md bg-custom-orange text-custom-dark hover:bg-orange-400 font-medium">Enter</button>
+        </div>
+      </div>
     </div>
 
     <script type="module">
@@ -128,9 +155,18 @@
         const confessionsList = document.getElementById('confessionsList');
         const loading = document.getElementById('loading');
         const emptyState = document.getElementById('emptyState');
+        const adminOnlyState = document.getElementById('adminOnlyState');
+        const adminBtn = document.getElementById('adminBtn');
+        const adminModal = document.getElementById('adminModal');
+        const adminPasswordInput = document.getElementById('adminPasswordInput');
+        const adminSubmitBtn = document.getElementById('adminSubmitBtn');
+        const adminCancelBtn = document.getElementById('adminCancelBtn');
+        const adminError = document.getElementById('adminError');
         
         // State
         let confessions = [];
+        let isAdmin = false;
+        let subscriptionChannel = null;
         const likingIds = new Set();
         
         // Character counter
@@ -168,8 +204,10 @@
                 charCount.textContent = '0/500';
                 charCount.className = 'text-sm text-gray-400';
                 
-                // Reload confessions to show the new one
-                await loadConfessions();
+                // Reload confessions to show the new one (admins only)
+                if (isAdmin) {
+                    await loadConfessions();
+                }
                 
             } catch (error) {
                 console.error('Error posting confession:', error);
@@ -180,6 +218,42 @@
             submitBtn.textContent = 'Post Anonymously';
         });
         
+        // Admin access
+        const ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD || 'changeme';
+        function openAdminModal() {
+          adminPasswordInput.value = '';
+          adminError.classList.add('hidden');
+          adminModal.classList.remove('hidden');
+          adminModal.classList.add('flex');
+          setTimeout(() => adminPasswordInput?.focus(), 0);
+        }
+        function closeAdminModal() {
+          adminModal.classList.add('hidden');
+          adminModal.classList.remove('flex');
+        }
+        adminBtn.addEventListener('click', openAdminModal);
+        adminCancelBtn.addEventListener('click', closeAdminModal);
+        adminSubmitBtn.addEventListener('click', async () => {
+          const input = adminPasswordInput.value.trim();
+          if (!input) {
+            adminError.textContent = 'Please enter password';
+            adminError.classList.remove('hidden');
+            return;
+          }
+          if (input === ADMIN_PASSWORD) {
+            isAdmin = true;
+            closeAdminModal();
+            adminOnlyState.classList.add('hidden');
+            await loadConfessions();
+            if (!subscriptionChannel) {
+              subscriptionChannel = setupRealtimeSubscription();
+            }
+          } else {
+            adminError.textContent = 'Invalid password. Try again.';
+            adminError.classList.remove('hidden');
+          }
+        });
+
         // Like a confession
         async function likeConfession(id) {
             const confession = confessions.find(c => c.id === id);
@@ -239,6 +313,13 @@
         // Render confessions
         function renderConfessions() {
             loading.classList.add('hidden');
+            if (!isAdmin) {
+                confessionsList.classList.add('hidden');
+                emptyState.classList.add('hidden');
+                adminOnlyState.classList.remove('hidden');
+                return;
+            }
+            adminOnlyState.classList.add('hidden');
             
             if (confessions.length === 0) {
                 confessionsList.classList.add('hidden');
@@ -326,8 +407,10 @@
         
         // Initialize app
         async function init() {
-            await loadConfessions();
-            setupRealtimeSubscription();
+            // Do not load or subscribe until admin is verified
+            adminOnlyState.classList.remove('hidden');
+            confessionsList.classList.add('hidden');
+            emptyState.classList.add('hidden');
         }
         
         // Start the app
