@@ -11,10 +11,11 @@
             theme: {
                 extend: {
                     colors: {
-                        'custom-black': '#000000',
-                        'custom-red': '#CF0F47',
-                        'custom-pink': '#FF0B55',
-                        'custom-light': '#FFDEDE'
+                        'custom-dark': '#0D0D0D',
+                        'custom-gray': '#222F40',
+                        'custom-orange': '#F2AF5C',
+                        'custom-red': '#F25C5C',
+                        'custom-light': '#FFFFFF'
                     }
                 }
             }
@@ -66,29 +67,28 @@
         }
     </style>
 </head>
-<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen">
-<body class="bg-gradient-to-br from-custom-black via-gray-900 to-custom-black min-h-screen text-custom-light">
+<body class="bg-gradient-to-br from-custom-dark via-custom-gray to-custom-dark min-h-screen text-custom-light">
     <div class="container mx-auto px-4 py-8 max-w-2xl">
         <!-- Header -->
         <div class="text-center mb-8">
             <h1 class="text-3xl font-bold text-custom-light mb-2">💭 Anonymous Confessions</h1>
-            <p class="text-pink-200">Share your thoughts anonymously</p>
+            <p class="text-gray-300">Share your thoughts anonymously</p>
         </div>
         
         <!-- Confession Form -->
-        <div class="bg-gray-900 border border-custom-red rounded-lg shadow-xl p-6 mb-8">
+        <div class="bg-custom-gray border border-custom-orange rounded-lg shadow-xl p-6 mb-8">
             <textarea 
                 id="confessionText" 
                 placeholder="Share your confession anonymously..." 
-                class="w-full p-4 bg-custom-black border border-gray-700 text-custom-light placeholder-pink-300 rounded-lg resize-none focus:ring-2 focus:ring-custom-pink focus:border-transparent outline-none"
+                class="w-full p-4 bg-custom-dark border border-gray-600 text-custom-light placeholder-gray-400 rounded-lg resize-none focus:ring-2 focus:ring-custom-orange focus:border-transparent outline-none"
                 rows="4"
                 maxlength="500"
             ></textarea>
             <div class="flex justify-between items-center mt-4">
-                <span id="charCount" class="text-sm text-pink-300">0/500</span>
+                <span id="charCount" class="text-sm text-gray-400">0/500</span>
                 <button 
                     id="submitBtn" 
-                    class="bg-custom-red hover:bg-custom-pink text-custom-light px-6 py-2 rounded-lg font-medium transition-colors duration-200 disabled:bg-gray-600 disabled:cursor-not-allowed"
+                    class="bg-custom-red hover:bg-red-500 text-custom-light px-6 py-2 rounded-lg font-medium transition-colors duration-200 disabled:bg-gray-600 disabled:cursor-not-allowed"
                 >
                     Post Anonymously
                 </button>
@@ -97,8 +97,8 @@
         
         <!-- Loading State -->
         <div id="loading" class="text-center py-8 hidden">
-            <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-custom-pink"></div>
-            <p class="text-pink-200 mt-2">Loading confessions...</p>
+            <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-custom-orange"></div>
+            <p class="text-gray-300 mt-2">Loading confessions...</p>
         </div>
         
         <!-- Confessions List -->
@@ -110,7 +110,7 @@
         <div id="emptyState" class="text-center py-12 hidden">
             <div class="text-6xl mb-4">🤐</div>
             <h3 class="text-xl font-medium text-custom-light mb-2">No confessions yet</h3>
-            <p class="text-pink-200">Be the first to share an anonymous confession!</p>
+            <p class="text-gray-300">Be the first to share an anonymous confession!</p>
         </div>
     </div>
 
@@ -138,11 +138,11 @@
             charCount.textContent = `${length}/500`;
             
             if (length > 450) {
-                charCount.className = 'text-sm text-custom-pink';
+                charCount.className = 'text-sm text-custom-red';
             } else if (length > 400) {
-                charCount.className = 'text-sm text-orange-300';
+                charCount.className = 'text-sm text-custom-orange';
             } else {
-                charCount.className = 'text-sm text-pink-300';
+                charCount.className = 'text-sm text-gray-400';
             }
             
             submitBtn.disabled = length === 0 || length > 500;
@@ -165,7 +165,7 @@
                 
                 confessionText.value = '';
                 charCount.textContent = '0/500';
-                charCount.className = 'text-sm text-pink-300';
+                charCount.className = 'text-sm text-gray-400';
                 
                 // Reload confessions to show the new one
                 await loadConfessions();
@@ -237,12 +237,12 @@
             confessionsList.classList.remove('hidden');
             
             confessionsList.innerHTML = confessions.map(confession => `
-                <div class="confession-card bg-gray-900 border border-custom-red rounded-lg shadow-xl p-6 fade-in" data-confession-id="${confession.id}">
+                <div class="confession-card bg-custom-gray border border-custom-orange rounded-lg shadow-xl p-6 fade-in" data-confession-id="${confession.id}">
                     <p class="text-custom-light mb-4 leading-relaxed">${escapeHtml(confession.message)}</p>
-                    <div class="flex justify-between items-center text-sm text-pink-200">
+                    <div class="flex justify-between items-center text-sm text-gray-300">
                         <span>${timeAgo(confession.created_at)}</span>
                         <button 
-                            class="like-btn flex items-center space-x-2 hover:text-custom-pink transition-colors duration-200"
+                            class="like-btn flex items-center space-x-2 hover:text-custom-red transition-colors duration-200"
                             onclick="likeConfession(${confession.id})"
                         >
                             <span class="text-lg">❤️</span>
