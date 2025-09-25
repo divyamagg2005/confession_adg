@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Anonymous Confessions</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'custom-black': '#000000',
+                        'custom-red': '#CF0F47',
+                        'custom-pink': '#FF0B55',
+                        'custom-light': '#FFDEDE'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+        }
+        
+        .confession-card {
+            transition: all 0.2s ease;
+        }
+        
+        .confession-card:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 10px 25px -3px rgba(0, 0, 0, 0.1);
+        }
+        
+        .like-btn {
+            transition: all 0.2s ease;
+        }
+        
+        .like-btn:hover {
+            transform: scale(1.1);
+        }
+        
+        .like-btn:active {
+            transform: scale(0.95);
+        }
+        
+        .fade-in {
+            animation: fadeIn 0.5s ease-in-out;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .pulse {
+            animation: pulse 0.3s ease-in-out;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+            100% { transform: scale(1); }
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen">
+<body class="bg-gradient-to-br from-custom-black via-gray-900 to-custom-black min-h-screen text-custom-light">
+    <div class="container mx-auto px-4 py-8 max-w-2xl">
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-custom-light mb-2">💭 Anonymous Confessions</h1>
+            <p class="text-pink-200">Share your thoughts anonymously</p>
+        </div>
+        
+        <!-- Confession Form -->
+        <div class="bg-gray-900 border border-custom-red rounded-lg shadow-xl p-6 mb-8">
+            <textarea 
+                id="confessionText" 
+                placeholder="Share your confession anonymously..." 
+                class="w-full p-4 bg-custom-black border border-gray-700 text-custom-light placeholder-pink-300 rounded-lg resize-none focus:ring-2 focus:ring-custom-pink focus:border-transparent outline-none"
+                rows="4"
+                maxlength="500"
+            ></textarea>
+            <div class="flex justify-between items-center mt-4">
+                <span id="charCount" class="text-sm text-pink-300">0/500</span>
+                <button 
+                    id="submitBtn" 
+                    class="bg-custom-red hover:bg-custom-pink text-custom-light px-6 py-2 rounded-lg font-medium transition-colors duration-200 disabled:bg-gray-600 disabled:cursor-not-allowed"
+                >
+                    Post Anonymously
+                </button>
+            </div>
+        </div>
+        
+        <!-- Loading State -->
+        <div id="loading" class="text-center py-8 hidden">
+            <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-custom-pink"></div>
+            <p class="text-pink-200 mt-2">Loading confessions...</p>
+        </div>
+        
+        <!-- Confessions List -->
+        <div id="confessionsList" class="space-y-4">
+            <!-- Confessions will be inserted here -->
+        </div>
+        
+        <!-- Empty State -->
+        <div id="emptyState" class="text-center py-12 hidden">
+            <div class="text-6xl mb-4">🤐</div>
+            <h3 class="text-xl font-medium text-custom-light mb-2">No confessions yet</h3>
+            <p class="text-pink-200">Be the first to share an anonymous confession!</p>
+        </div>
+    </div>
+
+    <script type="module">
+        // Supabase configuration
+        const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+        const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        
+        // DOM elements
+        const confessionText = document.getElementById('confessionText');
+        const charCount = document.getElementById('charCount');
+        const submitBtn = document.getElementById('submitBtn');
+        const confessionsList = document.getElementById('confessionsList');
+        const loading = document.getElementById('loading');
+        const emptyState = document.getElementById('emptyState');
+        
+        // State
+        let confessions = [];
+        
+        // Character counter
+        confessionText.addEventListener('input', () => {
+            const length = confessionText.value.length;
+            charCount.textContent = `${length}/500`;
+            
+            if (length > 450) {
+                charCount.className = 'text-sm text-custom-pink';
+            } else if (length > 400) {
+                charCount.className = 'text-sm text-orange-300';
+            } else {
+                charCount.className = 'text-sm text-pink-300';
+            }
+            
+            submitBtn.disabled = length === 0 || length > 500;
+        });
+        
+        // Submit confession
+        submitBtn.addEventListener('click', async () => {
+            const message = confessionText.value.trim();
+            if (!message) return;
+            
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Posting...';
+            
+            try {
+                const { error } = await supabase
+                    .from('confessions')
+                    .insert([{ message }]);
+                
+                if (error) throw error;
+                
+                confessionText.value = '';
+                charCount.textContent = '0/500';
+                charCount.className = 'text-sm text-pink-300';
+                
+                // Reload confessions to show the new one
+                await loadConfessions();
+                
+            } catch (error) {
+                console.error('Error posting confession:', error);
+                alert('Failed to post confession. Please try again.');
+            }
+            
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Post Anonymously';
+        });
+        
+        // Like a confession
+        async function likeConfession(id) {
+            const confession = confessions.find(c => c.id === id);
+            if (!confession) return;
+            
+            // Optimistic update
+            confession.likes += 1;
+            renderConfessions();
+            
+            // Add pulse animation to the like button
+            const likeBtn = document.querySelector(`[data-confession-id="${id}"] .like-btn`);
+            if (likeBtn) {
+                likeBtn.classList.add('pulse');
+                setTimeout(() => likeBtn.classList.remove('pulse'), 300);
+            }
+            
+            try {
+                const { error } = await supabase
+                    .from('confessions')
+                    .update({ likes: confession.likes })
+                    .eq('id', id);
+                
+                if (error) {
+                    // Revert optimistic update on error
+                    confession.likes -= 1;
+                    renderConfessions();
+                    throw error;
+                }
+            } catch (error) {
+                console.error('Error liking confession:', error);
+            }
+        }
+        
+        // Format time ago
+        function timeAgo(date) {
+            const now = new Date();
+            const diffInSeconds = Math.floor((now - new Date(date)) / 1000);
+            
+            if (diffInSeconds < 60) return 'just now';
+            if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
+            if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
+            return `${Math.floor(diffInSeconds / 86400)}d ago`;
+        }
+        
+        // Render confessions
+        function renderConfessions() {
+            loading.classList.add('hidden');
+            
+            if (confessions.length === 0) {
+                confessionsList.classList.add('hidden');
+                emptyState.classList.remove('hidden');
+                return;
+            }
+            
+            emptyState.classList.add('hidden');
+            confessionsList.classList.remove('hidden');
+            
+            confessionsList.innerHTML = confessions.map(confession => `
+                <div class="confession-card bg-gray-900 border border-custom-red rounded-lg shadow-xl p-6 fade-in" data-confession-id="${confession.id}">
+                    <p class="text-custom-light mb-4 leading-relaxed">${escapeHtml(confession.message)}</p>
+                    <div class="flex justify-between items-center text-sm text-pink-200">
+                        <span>${timeAgo(confession.created_at)}</span>
+                        <button 
+                            class="like-btn flex items-center space-x-2 hover:text-custom-pink transition-colors duration-200"
+                            onclick="likeConfession(${confession.id})"
+                        >
+                            <span class="text-lg">❤️</span>
+                            <span class="font-medium text-custom-light">${confession.likes}</span>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        // Escape HTML to prevent XSS
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // Load confessions
+        async function loadConfessions() {
+            loading.classList.remove('hidden');
+            
+            try {
+                const { data, error } = await supabase
+                    .from('confessions')
+                    .select('*')
+                    .order('created_at', { ascending: false });
+                
+                if (error) throw error;
+                
+                confessions = data || [];
+                renderConfessions();
+                
+            } catch (error) {
+                console.error('Error loading confessions:', error);
+                loading.classList.add('hidden');
+            }
+        }
+        
+        // Set up real-time subscription
+        function setupRealtimeSubscription() {
+            const channel = supabase
+                .channel('confessions-changes')
+                .on('postgres_changes', {
+                    event: '*',
+                    schema: 'public',
+                    table: 'confessions'
+                }, (payload) => {
+                    console.log('Real-time update:', payload);
+                    
+                    if (payload.eventType === 'INSERT') {
+                        confessions.unshift(payload.new);
+                    } else if (payload.eventType === 'UPDATE') {
+                        const index = confessions.findIndex(c => c.id === payload.new.id);
+                        if (index !== -1) {
+                            confessions[index] = payload.new;
+                        }
+                    }
+                    
+                    renderConfessions();
+                })
+                .subscribe();
+                
+            return channel;
+        }
+        
+        // Initialize app
+        async function init() {
+            await loadConfessions();
+            setupRealtimeSubscription();
+        }
+        
+        // Start the app
+        init();
+        
+        // Update time ago every minute
+        setInterval(() => {
+            if (confessions.length > 0) {
+                renderConfessions();
+            }
+        }, 60000);
+    </script>
+</body>
+</html>
