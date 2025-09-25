@@ -131,6 +131,7 @@
         
         // State
         let confessions = [];
+        const likingIds = new Set();
         
         // Character counter
         confessionText.addEventListener('input', () => {
@@ -182,7 +183,9 @@
         // Like a confession
         async function likeConfession(id) {
             const confession = confessions.find(c => c.id === id);
-            if (!confession) return;
+            if (!confession || likingIds.has(id)) return;
+            
+            likingIds.add(id);
             
             // Optimistic update
             confession.likes += 1;
@@ -196,21 +199,31 @@
             }
             
             try {
-                const { error } = await supabase
-                    .from('confessions')
-                    .update({ likes: confession.likes })
-                    .eq('id', id);
+                // Atomic increment via RPC to avoid race conditions
+                const { data, error } = await supabase.rpc('increment_likes', { confession_id: id });
+                if (error) throw error;
                 
-                if (error) {
-                    // Revert optimistic update on error
-                    confession.likes -= 1;
-                    renderConfessions();
-                    throw error;
+                // Sync local state to the authoritative value returned by DB
+                if (Array.isArray(data) && data.length > 0) {
+                    const updated = data[0];
+                    const index = confessions.findIndex(c => c.id === updated.id);
+                    if (index !== -1) {
+                        confessions[index] = updated;
+                        renderConfessions();
+                    }
                 }
             } catch (error) {
                 console.error('Error liking confession:', error);
+                // Revert optimistic update on error
+                confession.likes = Math.max(0, confession.likes - 1);
+                renderConfessions();
+            } finally {
+                likingIds.delete(id);
             }
         }
+        
+        // Expose function globally for inline onclick handler
+        window.likeConfession = likeConfession;
         
         // Format time ago
         function timeAgo(date) {
@@ -293,7 +306,10 @@
                     console.log('Real-time update:', payload);
                     
                     if (payload.eventType === 'INSERT') {
-                        confessions.unshift(payload.new);
+                        // Avoid duplicates if we've already loaded this confession
+                        if (!confessions.some(c => c.id === payload.new.id)) {
+                            confessions.unshift(payload.new);
+                        }
                     } else if (payload.eventType === 'UPDATE') {
                         const index = confessions.findIndex(c => c.id === payload.new.id);
                         if (index !== -1) {
